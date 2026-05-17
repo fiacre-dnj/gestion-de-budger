@@ -352,4 +352,31 @@ export const reportsApi = {
     api.get<any>('/reports/annual', { params: { year } }),
 };
 
+export interface AiChatAction {
+  tool: string;
+  success: boolean;
+  summary?: string;
+}
+
+export interface AiChatResponse {
+  reply: string;
+  conversationId: string;
+  actions: AiChatAction[];
+  provider: string;
+}
+
+export interface AiProviderInfo {
+  provider: string | null;
+  configured: boolean;
+  hint?: string;
+}
+
+export const aiApi = {
+  chat: (message: string, conversationId?: string) =>
+    api.post<AiChatResponse>('/ai/chat', { message, conversationId }),
+  getProvider: () => api.get<AiProviderInfo>('/ai/provider'),
+  listConversations: () =>
+    api.get<{ _id: string; title: string; updatedAt: string }[]>('/ai/conversations'),
+};
+
 export default api;

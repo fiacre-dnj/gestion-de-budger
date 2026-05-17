@@ -15,6 +15,7 @@ import { ImportModule } from './import/import.module';
 import { ReportsModule } from './reports/reports.module';
 import { WalletsModule } from './wallets/wallets.module';
 import { MigrationModule } from './migration/migration.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { MigrationModule } from './migration/migration.module';
     ReportsModule,
     WalletsModule,
     MigrationModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

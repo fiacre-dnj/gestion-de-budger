@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, List, Tags, Settings, LogOut, Wallet, ChevronLeft, ChevronRight, BarChart3, PiggyBank, Repeat } from 'lucide-react';
+import { LayoutDashboard, List, Tags, Settings, LogOut, Wallet, ChevronLeft, ChevronRight, BarChart3, PiggyBank, Repeat, Bot } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
 import ThemeToggle from './ThemeToggle';
@@ -11,6 +11,7 @@ const navItems = [
   { path: '/wallets', label: 'Portefeuilles', icon: Wallet },
   { path: '/categories', label: 'Catégories', icon: Tags },
   { path: '/subscriptions', label: 'Charges', icon: Repeat },
+  { path: '/assistant', label: 'Assistant IA', icon: Bot },
   { path: '/analysis', label: 'Analyse', icon: BarChart3 },
   { path: '/savings', label: 'Épargne', icon: PiggyBank },
   { path: '/settings', label: 'Paramètres', icon: Settings },

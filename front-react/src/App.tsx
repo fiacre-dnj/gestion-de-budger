@@ -13,6 +13,7 @@ import AnalysisPage from './pages/Analysis/AnalysisPage';
 import SavingsPage from './pages/Savings/SavingsPage';
 import WalletsPage from './pages/Wallets/WalletsPage';
 import SubscriptionsPage from './pages/Subscriptions/SubscriptionsPage';
+import AssistantPage from './pages/Assistant/AssistantPage';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -127,6 +128,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <SubscriptionsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assistant"
+        element={
+          <ProtectedRoute>
+            <AssistantPage />
           </ProtectedRoute>
         }
       />
