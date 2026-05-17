@@ -4,6 +4,7 @@ import type { LlmMessage, LlmProvider } from '../providers/llm.types';
 import { LLM_PROVIDER } from '../providers/llm.types';
 import { AI_TOOL_DEFINITIONS } from '../tools/ai-tools.definitions';
 import { AiToolsExecutor } from '../tools/ai-tools.executor';
+import { normalizeToolArgs } from '../tools/ai-tools.utils';
 import { ContextBuilderService } from './context-builder.service';
 import { ConversationService } from './conversation.service';
 
@@ -16,6 +17,9 @@ Règles:
 - Donne des conseils concrets basés sur les données réelles de l'utilisateur.
 - Les montants sont dans la devise de l'utilisateur.
 - Si une information manque (portefeuille, catégorie), liste les options disponibles via les outils.
+- Pour les outils sans paramètre obligatoire, passe toujours un objet JSON vide {} — jamais null.
+- N'appelle create_transaction ni add_saving_contribution que si l'utilisateur demande explicitement une action d'écriture.
+- Pour donner des conseils, utilise get_financial_health, get_transactions_summary, list_wallets et list_saving_goals — pas create_transaction.
 - Ne révèle jamais de secrets techniques ni de tokens.`;
 
 export interface ChatResult {
@@ -88,16 +92,21 @@ export class AgentService {
           let summary = '';
 
           try {
-            const args = JSON.parse(toolCall.arguments || '{}') as Record<string, unknown>;
+            const args = normalizeToolArgs(toolCall.arguments);
             result = await this.toolsExecutor.execute(userId, toolCall.name, args);
             summary = this.summarizeToolResult(toolCall.name, result);
           } catch (err) {
             success = false;
-            result = { error: err instanceof Error ? err.message : String(err) };
-            summary = String((result as { error: string }).error);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            result = { error: errorMessage };
+            summary = errorMessage;
+            this.logger.warn(`Tool ${toolCall.name} failed: ${errorMessage}`);
           }
 
-          actions.push({ tool: toolCall.name, success, summary });
+          // N'afficher que les outils réellement invoqués (pas les échecs silencieux vides)
+          if (success || summary) {
+            actions.push({ tool: toolCall.name, success, summary });
+          }
 
           const resultContent = JSON.stringify(result);
           messages.push({
@@ -134,14 +143,30 @@ export class AgentService {
   }
 
   private summarizeToolResult(toolName: string, result: unknown): string {
-    if (!result || typeof result !== 'object') return 'OK';
+    if (!result || typeof result !== 'object') return this.toolLabel(toolName);
     const r = result as Record<string, unknown>;
+    if (r.error) return String(r.error);
     if (toolName === 'create_transaction' && r.title) {
-      return `Transaction "${r.title}" créée`;
+      return `Transaction « ${r.title} » créée`;
     }
     if (toolName === 'add_saving_contribution' && r.title) {
-      return `Contribution enregistrée pour "${r.title}"`;
+      return `Contribution enregistrée pour « ${r.title} »`;
     }
-    return 'Action réussie';
+    if (Array.isArray(result)) {
+      return `${this.toolLabel(toolName)} (${result.length} élément${result.length > 1 ? 's' : ''})`;
+    }
+    return this.toolLabel(toolName);
+  }
+
+  private toolLabel(toolName: string): string {
+    const labels: Record<string, string> = {
+      list_wallets: 'Portefeuilles récupérés',
+      list_categories: 'Catégories récupérées',
+      get_transactions_summary: 'Résumé des transactions',
+      list_saving_goals: 'Objectifs d\'épargne récupérés',
+      get_monthly_analysis: 'Analyse mensuelle',
+      get_financial_health: 'Santé financière analysée',
+    };
+    return labels[toolName] ?? 'Données récupérées';
   }
 }

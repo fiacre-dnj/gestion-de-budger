@@ -5,6 +5,13 @@ import { TransactionsService } from '../../transactions/transactions.service';
 import { SavingsService } from '../../savings/savings.service';
 import { AnalysisService } from '../../analysis/analysis.service';
 import { CategoryType } from '../../categories/schemas/category.schema';
+import {
+  normalizeToolArgs,
+  optionalNumber,
+  optionalString,
+  requireNumber,
+  requireString,
+} from './ai-tools.utils';
 
 @Injectable()
 export class AiToolsExecutor {
@@ -18,7 +25,15 @@ export class AiToolsExecutor {
     private readonly analysisService: AnalysisService,
   ) {}
 
-  async execute(userId: string, toolName: string, args: Record<string, unknown>): Promise<unknown> {
+  async execute(
+    userId: string,
+    toolName: string,
+    rawArgs: Record<string, unknown> | string | null | undefined,
+  ): Promise<unknown> {
+    const args = typeof rawArgs === 'string'
+      ? normalizeToolArgs(rawArgs)
+      : normalizeToolArgs(rawArgs ? JSON.stringify(rawArgs) : '{}');
+
     this.logger.debug(`Tool ${toolName}: ${JSON.stringify(args)}`);
 
     switch (toolName) {
@@ -26,7 +41,13 @@ export class AiToolsExecutor {
         return this.walletsService.findAll(userId);
 
       case 'list_categories': {
-        const type = args.type as CategoryType | undefined;
+        const typeRaw = optionalString(args.type);
+        const type =
+          typeRaw === 'income'
+            ? CategoryType.INCOME
+            : typeRaw === 'expense'
+              ? CategoryType.EXPENSE
+              : undefined;
         return this.categoriesService.findAll(userId, type);
       }
 
@@ -34,8 +55,9 @@ export class AiToolsExecutor {
         return this.createTransaction(userId, args);
 
       case 'get_transactions_summary': {
-        const wallet = args.walletName
-          ? await this.resolveWallet(userId, args.walletName as string)
+        const walletName = optionalString(args.walletName);
+        const wallet = walletName
+          ? await this.resolveWallet(userId, walletName)
           : null;
         return this.transactionsService.getSummary(userId, wallet?._id.toString());
       }
@@ -44,18 +66,16 @@ export class AiToolsExecutor {
         return this.savingsService.findAll(userId);
 
       case 'add_saving_contribution': {
-        const goal = await this.resolveSavingGoal(userId, args.goalName as string);
-        return this.savingsService.addContribution(
-          goal._id.toString(),
-          userId,
-          args.amount as number,
-        );
+        const goalName = requireString(args.goalName, 'goalName');
+        const amount = requireNumber(args.amount, 'amount');
+        const goal = await this.resolveSavingGoal(userId, goalName);
+        return this.savingsService.addContribution(goal._id.toString(), userId, amount);
       }
 
       case 'get_monthly_analysis': {
         const now = new Date();
-        const month = (args.month as number) || now.getMonth() + 1;
-        const year = (args.year as number) || now.getFullYear();
+        const month = optionalNumber(args.month) ?? now.getMonth() + 1;
+        const year = optionalNumber(args.year) ?? now.getFullYear();
         return this.analysisService.getMonthlyAnalysis(userId, month, year);
       }
 
@@ -68,34 +88,44 @@ export class AiToolsExecutor {
   }
 
   private async createTransaction(userId: string, args: Record<string, unknown>) {
-    const wallet = args.walletName
-      ? await this.resolveWallet(userId, args.walletName as string)
+    const title = requireString(args.title, 'title');
+    const amount = requireNumber(args.amount, 'amount');
+    const type = requireString(args.type, 'type');
+
+    if (!['income', 'expense', 'transfer'].includes(type)) {
+      throw new Error('Le type doit être income, expense ou transfer.');
+    }
+
+    const walletName = optionalString(args.walletName);
+    const wallet = walletName
+      ? await this.resolveWallet(userId, walletName)
       : null;
 
     let categoryId: string | undefined;
-    if (args.categoryName) {
-      const cat = await this.resolveCategory(userId, args.categoryName as string, args.type as string);
-      categoryId = cat?._id.toString();
+    const categoryName = optionalString(args.categoryName);
+    if (categoryName) {
+      const cat = await this.resolveCategory(userId, categoryName, type);
+      categoryId = cat._id.toString();
     }
 
     let toWalletId: string | undefined;
-    if (args.toWalletName) {
-      const toWallet = await this.resolveWallet(userId, args.toWalletName as string);
+    const toWalletName = optionalString(args.toWalletName);
+    if (toWalletName) {
+      const toWallet = await this.resolveWallet(userId, toWalletName);
       toWalletId = toWallet._id.toString();
     }
 
-    const date =
-      (args.date as string) || new Date().toISOString().split('T')[0];
+    const date = optionalString(args.date) || new Date().toISOString().split('T')[0];
 
     return this.transactionsService.create(userId, {
-      title: args.title as string,
-      amount: args.amount as number,
-      type: args.type as string,
+      title,
+      amount,
+      type,
       date,
       walletId: wallet?._id.toString(),
       category: categoryId,
       toWalletId,
-      description: args.description as string | undefined,
+      description: optionalString(args.description),
     });
   }
 
@@ -115,7 +145,7 @@ export class AiToolsExecutor {
     return match;
   }
 
-  private async resolveCategory(userId: string, name: string, txType?: string) {
+  private async resolveCategory(userId: string, name: string, txType: string) {
     const type =
       txType === 'income' ? CategoryType.INCOME : CategoryType.EXPENSE;
     const categories = await this.categoriesService.findAll(userId, type);
