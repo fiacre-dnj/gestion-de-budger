@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface SpeechRecognitionEvent {
-  results: { [index: number]: { [index: number]: { transcript: string } } };
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: {
+      isFinal: boolean;
+      [index: number]: { transcript: string };
+    };
+  };
 }
 
 interface SpeechRecognitionInstance extends EventTarget {
@@ -38,12 +45,19 @@ export function useSpeechRecognition(onResult: (text: string) => void) {
 
     const recognition = new SpeechRecognitionAPI();
     recognition.lang = 'fr-FR';
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = false;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      onResult(transcript.trim());
+      let newTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          newTranscript += event.results[i][0].transcript + ' ';
+        }
+      }
+      if (newTranscript.trim()) {
+        onResult(newTranscript.trim());
+      }
     };
 
     recognition.onerror = () => setIsListening(false);

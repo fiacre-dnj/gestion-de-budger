@@ -33,6 +33,14 @@ export default function AssistantPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+    }
+  }, [input]);
 
   const handleVoiceResult = useCallback((text: string) => {
     setInput((prev) => (prev ? `${prev} ${text}` : text));
@@ -251,16 +259,26 @@ export default function AssistantPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-4">
-          <div className="flex gap-2 items-stretch">
+        <form onSubmit={handleSubmit} className="mt-4 relative">
+          {input.length > 0 && !isLoading && !isListening && (
+            <button
+              type="button"
+              onClick={() => setInput('')}
+              className="absolute -top-8 right-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 bg-white dark:bg-gray-800 px-2 py-1 rounded-md shadow-sm border border-gray-100 dark:border-gray-700 transition-colors"
+            >
+              Effacer le texte
+            </button>
+          )}
+          <div className="flex gap-2 items-end">
             <div
-              className={`flex-1 flex items-center gap-1 min-h-[52px] rounded-xl border bg-white dark:bg-gray-800 transition-shadow ${
+              className={`flex-1 flex items-end gap-1 min-h-[52px] rounded-xl border bg-white dark:bg-gray-800 transition-shadow ${
                 isListening
                   ? 'border-primary-400 ring-2 ring-primary-500/30 dark:border-primary-500'
                   : 'border-gray-200 dark:border-gray-700 focus-within:ring-2 focus-within:ring-primary-500/40'
               }`}
             >
               <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -272,7 +290,8 @@ export default function AssistantPage() {
                 placeholder="Écrivez ou dictez votre message..."
                 rows={1}
                 disabled={isLoading || !providerInfo?.configured || isListening}
-                className="flex-1 min-h-[48px] max-h-32 py-3 pl-4 pr-1 bg-transparent text-gray-900 dark:text-white resize-none outline-none disabled:opacity-50 leading-6"
+                className="flex-1 min-h-[52px] py-3.5 pl-4 pr-1 bg-transparent text-gray-900 dark:text-white resize-none outline-none disabled:opacity-50 leading-relaxed overflow-y-auto"
+                style={{ maxHeight: '160px' }}
               />
               {isSupported && (
                 <button
@@ -280,7 +299,7 @@ export default function AssistantPage() {
                   onClick={toggleMic}
                   disabled={isLoading || !providerInfo?.configured}
                   title={isListening ? 'Arrêter la dictée' : 'Dicter un message'}
-                  className={`shrink-0 m-1.5 p-2.5 rounded-lg transition-colors ${
+                  className={`shrink-0 mb-1.5 mr-1.5 p-2 rounded-lg transition-colors ${
                     isListening
                       ? 'bg-primary-600 text-white shadow-md'
                       : 'text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -297,7 +316,7 @@ export default function AssistantPage() {
             <Button
               type="submit"
               disabled={!input.trim() || isLoading || !providerInfo?.configured || isListening}
-              className="shrink-0 min-h-[52px] h-[52px] w-[52px] p-0 rounded-xl flex items-center justify-center"
+              className="shrink-0 mb-0 min-h-[52px] h-[52px] w-[52px] p-0 rounded-xl flex items-center justify-center"
               aria-label="Envoyer"
             >
               {isLoading ? (
