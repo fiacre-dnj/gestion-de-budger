@@ -14,6 +14,7 @@ import Layout from '../../components/Layout/Layout';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import Input from '../../components/UI/Input';
+import ConfirmModal from '../../components/UI/ConfirmModal';
 import { walletsApi, type Wallet } from '../../services/api';
 import { useCurrency } from '../../context/CurrencyContext';
 
@@ -25,6 +26,9 @@ export default function WalletsPage() {
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [walletToDelete, setWalletToDelete] = useState<Wallet | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { formatAmount } = useCurrency();
 
   // Form state
@@ -89,16 +93,24 @@ export default function WalletsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce portefeuille ? Les transactions associées perdront leur lien.')) {
-      return;
-    }
+  const handleDelete = (wallet: Wallet) => {
+    setWalletToDelete(wallet);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!walletToDelete) return;
+    setIsDeleting(true);
     try {
-      await walletsApi.delete(id);
+      await walletsApi.delete(walletToDelete._id);
+      setIsDeleteModalOpen(false);
+      setWalletToDelete(null);
       fetchWallets();
     } catch (error) {
       console.error('Failed to delete wallet:', error);
       alert('Erreur lors de la suppression');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -157,7 +169,7 @@ export default function WalletsPage() {
                     <Button variant="ghost" size="sm" onClick={() => handleOpenModal(wallet)}>
                       <Pencil className="w-4 h-4 text-gray-400" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(wallet._id)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(wallet)}>
                       <Trash2 className="w-4 h-4 text-red-400" />
                     </Button>
                   </div>
@@ -256,6 +268,25 @@ export default function WalletsPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          if (isDeleting) return;
+          setIsDeleteModalOpen(false);
+          setWalletToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Supprimer le portefeuille"
+        message={
+          walletToDelete
+            ? `Êtes-vous sûr de vouloir supprimer le portefeuille "${walletToDelete.name}" ? Les transactions associées perdront leur lien.`
+            : ''
+        }
+        confirmLabel="Supprimer"
+        isLoading={isDeleting}
+      />
     </Layout>
   );
 }
