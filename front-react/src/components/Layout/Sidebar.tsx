@@ -11,9 +11,9 @@ const navItems = [
   { path: '/wallets', label: 'Portefeuilles', icon: Wallet },
   { path: '/categories', label: 'Catégories', icon: Tags },
   { path: '/subscriptions', label: 'Charges', icon: Repeat },
-  { path: '/assistant', label: 'Assistant IA', icon: Bot },
-  { path: '/analysis', label: 'Analyse', icon: BarChart3 },
   { path: '/savings', label: 'Épargne', icon: PiggyBank },
+  { path: '/analysis', label: 'Analyse', icon: BarChart3 },
+  { path: '/assistant', label: 'Assistant IA', icon: Bot },
   { path: '/settings', label: 'Paramètres', icon: Settings },
 ];
 

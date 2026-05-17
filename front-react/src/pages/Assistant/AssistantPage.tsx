@@ -4,6 +4,8 @@ import Layout from '../../components/Layout/Layout';
 import Button from '../../components/UI/Button';
 import { aiApi, type AiChatAction } from '../../services/api';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { useAudioLevels } from '../../hooks/useAudioLevels';
+import VoiceListeningOverlay from '../../components/Assistant/VoiceListeningOverlay';
 
 interface ChatMessage {
   id: string;
@@ -38,6 +40,14 @@ export default function AssistantPage() {
 
   const { isListening, isSupported, startListening, stopListening } =
     useSpeechRecognition(handleVoiceResult);
+  const { levels: audioLevels, start: startAudioLevels, stop: stopAudioLevels } =
+    useAudioLevels();
+
+  useEffect(() => {
+    if (!isListening) {
+      stopAudioLevels();
+    }
+  }, [isListening, stopAudioLevels]);
 
   useEffect(() => {
     aiApi
@@ -96,13 +106,31 @@ export default function AssistantPage() {
     sendMessage(input);
   };
 
+  const stopVoiceInput = useCallback(() => {
+    stopListening();
+    stopAudioLevels();
+  }, [stopListening, stopAudioLevels]);
+
+  const startVoiceInput = useCallback(async () => {
+    try {
+      await startAudioLevels();
+      startListening();
+    } catch {
+      stopAudioLevels();
+    }
+  }, [startAudioLevels, startListening, stopAudioLevels]);
+
   const toggleMic = () => {
-    if (isListening) stopListening();
-    else startListening();
+    if (isListening) stopVoiceInput();
+    else void startVoiceInput();
   };
 
   return (
     <Layout title="Assistant Stash">
+      {isListening && (
+        <VoiceListeningOverlay levels={audioLevels} onStop={stopVoiceInput} />
+      )}
+
       <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto">
         {providerInfo && !providerInfo.configured && (
           <div className="mb-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 flex gap-3 text-sm text-amber-800 dark:text-amber-300">
@@ -223,55 +251,62 @@ export default function AssistantPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-4 flex gap-2 items-end">
-          <div className="flex-1 relative">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-              placeholder={
-                isListening ? 'Écoute en cours...' : 'Écrivez ou dictez votre message...'
-              }
-              rows={2}
-              disabled={isLoading || !providerInfo?.configured}
-              className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none disabled:opacity-50"
-            />
-            {isSupported && (
-              <button
-                type="button"
-                onClick={toggleMic}
-                disabled={isLoading || !providerInfo?.configured}
-                title={isListening ? 'Arrêter' : 'Dicter'}
-                className={`absolute right-3 bottom-3 p-2 rounded-lg transition-colors ${
-                  isListening
-                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 animate-pulse'
-                    : 'text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                {isListening ? (
-                  <MicOff className="w-5 h-5" />
-                ) : (
-                  <Mic className="w-5 h-5" />
-                )}
-              </button>
-            )}
+        <form onSubmit={handleSubmit} className="mt-4">
+          <div className="flex gap-2 items-stretch">
+            <div
+              className={`flex-1 flex items-center gap-1 min-h-[52px] rounded-xl border bg-white dark:bg-gray-800 transition-shadow ${
+                isListening
+                  ? 'border-primary-400 ring-2 ring-primary-500/30 dark:border-primary-500'
+                  : 'border-gray-200 dark:border-gray-700 focus-within:ring-2 focus-within:ring-primary-500/40'
+              }`}
+            >
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder="Écrivez ou dictez votre message..."
+                rows={1}
+                disabled={isLoading || !providerInfo?.configured || isListening}
+                className="flex-1 min-h-[48px] max-h-32 py-3 pl-4 pr-1 bg-transparent text-gray-900 dark:text-white resize-none outline-none disabled:opacity-50 leading-6"
+              />
+              {isSupported && (
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  disabled={isLoading || !providerInfo?.configured}
+                  title={isListening ? 'Arrêter la dictée' : 'Dicter un message'}
+                  className={`shrink-0 m-1.5 p-2.5 rounded-lg transition-colors ${
+                    isListening
+                      ? 'bg-primary-600 text-white shadow-md'
+                      : 'text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {isListening ? (
+                    <MicOff className="w-5 h-5" />
+                  ) : (
+                    <Mic className="w-5 h-5" />
+                  )}
+                </button>
+              )}
+            </div>
+            <Button
+              type="submit"
+              disabled={!input.trim() || isLoading || !providerInfo?.configured || isListening}
+              className="shrink-0 min-h-[52px] h-[52px] w-[52px] p-0 rounded-xl flex items-center justify-center"
+              aria-label="Envoyer"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </Button>
           </div>
-          <Button
-            type="submit"
-            disabled={!input.trim() || isLoading || !providerInfo?.configured}
-            className="h-[52px] px-4"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-          </Button>
         </form>
       </div>
     </Layout>
